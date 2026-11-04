@@ -828,7 +828,7 @@ fn eval_array(
     use ExpX::*;
     use InterpExp::*;
     match &exp.x {
-        Call(_fun, _typs, _old_args) => {
+        Call(fun, typs, _old_args) => {
             use ArrayFn::*;
             match array_fn {
                 View => {
@@ -860,10 +860,13 @@ fn eval_array(
                             let e = SpannedTyped::new(&exp.span, &seq_typ, Interp(Seq(im_vec)));
                             Ok(e)
                         }
-                        _ => panic!(
-                            "Expected the argument to array_view to already be an Interp(Array(_)).  Got: {:?}",
-                            array_exp
-                        ),
+                        // Symbolic arrays cannot be converted to concrete sequences. Preserve
+                        // the evaluated arguments so substitutions survive the fallback to SMT.
+                        _ => Ok(SpannedTyped::new(
+                            &exp.span,
+                            &exp.typ,
+                            Call(fun.clone(), typs.clone(), args.clone()),
+                        )),
                     }
                 }
             }

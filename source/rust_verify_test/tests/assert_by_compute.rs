@@ -901,6 +901,7 @@ test_verify_one_file! {
         const MyArray: [u32; 3] = [31, 32, 33];
 
         proof fn mytest() {
+            assert([48u8]@[0] == 48u8) by (compute_only);
             assert([41u32, 42][1] == 42) by (compute_only);
             assert(MyArray[1] == 32) by (compute_only);
             let x = 0;
@@ -916,7 +917,7 @@ test_verify_one_file! {
         fn test() {
             let bytes = [48u8];
             proof {
-                // Crashes in eval_array at vir/src/interpreter.rs:863 on upstream f049e6dc1:
+                // Previously crashed in eval_array at vir/src/interpreter.rs:863 on f049e6dc1:
                 // array_view expects Interp(Array(_)), but bytes is Interp(FreeVar(_)).
                 // The symbolic view should instead be left for SMT.
                 assert(bytes@[0] == 48u8) by (compute);
@@ -937,6 +938,45 @@ test_verify_one_file! {
             }
         }
     } => Ok(())
+}
+
+test_verify_one_file! {
+    #[test] array_view_compute_substituted_argument verus_code! {
+        use vstd::prelude::*;
+
+        spec fn first(a: [u8; 1]) -> u8 {
+            a@[0]
+        }
+
+        fn test() {
+            let bytes = [48u8];
+            // The residual array_view must refer to bytes, not the unfolded parameter a.
+            assert(first(bytes) == 48u8) by (compute);
+        }
+    } => Ok(())
+}
+
+test_verify_one_file! {
+    #[test] array_local_view_compute_false verus_code! {
+        use vstd::prelude::*;
+
+        fn test() {
+            let bytes = [48u8];
+            assert(bytes@[0] == 49u8) by (compute); // FAILS
+        }
+    } => Err(err) => assert_one_fails(err)
+}
+
+test_verify_one_file! {
+    #[test] array_local_view_compute_only verus_code! {
+        use vstd::prelude::*;
+
+        fn test() {
+            let bytes = [48u8];
+            // compute_only must report an unsimplified expression instead of panicking.
+            assert(bytes@[0] == 48u8) by (compute_only); // FAILS
+        }
+    } => Err(err) => assert_vir_error_msg(err, "failed to simplify down to true")
 }
 
 test_verify_one_file! {
