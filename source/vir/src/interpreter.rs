@@ -833,24 +833,25 @@ fn eval_array(
             match array_fn {
                 View => {
                     let array_exp = &args[0];
+                    // Symbolic arguments must still satisfy the array_view type invariant.
+                    let inner_typ = match &*array_exp.typ {
+                        TypX::Primitive(Primitive::Array, typs) => typs[0].clone(),
+                        TypX::Decorate(_, _, t) => match &**t {
+                            TypX::Primitive(Primitive::Array, typs) => typs[0].clone(),
+                            _ => panic!(
+                                "Expected array_view with decorated argument to contain an array type.  Got: {:?}",
+                                array_exp.typ
+                            ),
+                        },
+                        _ => panic!(
+                            "Expected array_view to be called with an array or decorated type.  Got: {:?}",
+                            array_exp.typ
+                        ),
+                    };
                     match &array_exp.x {
                         Interp(Array(es)) => {
                             let im_vec: Vector<Exp> =
                                 Vector::from_iter(es.iter().map(|e| e.clone()));
-                            let inner_typ = match &*array_exp.typ {
-                                TypX::Primitive(Primitive::Array, typs) => typs[0].clone(),
-                                TypX::Decorate(_, _, t) => match &**t {
-                                    TypX::Primitive(Primitive::Array, typs) => typs[0].clone(),
-                                    _ => panic!(
-                                        "Expected array_view with decorated argument to contain an array type.  Got: {:?}",
-                                        array_exp.typ
-                                    ),
-                                },
-                                _ => panic!(
-                                    "Expected array_view to be called with an array or decorated type.  Got: {:?}",
-                                    array_exp.typ
-                                ),
-                            };
                             let seq_type_path = crate::path!(CrateId::Vstd => "seq", "Seq");
                             let seq_typ = Arc::new(TypX::Datatype(
                                 Dt::Path(seq_type_path),

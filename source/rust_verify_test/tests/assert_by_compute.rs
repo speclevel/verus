@@ -957,6 +957,32 @@ test_verify_one_file! {
 }
 
 test_verify_one_file! {
+    #[test] array_view_compute_symbolic_expressions verus_code! {
+        use vstd::prelude::*;
+
+        uninterp spec fn bytes() -> [u8; 1];
+
+        proof fn call()
+            requires bytes()@[0] == 48u8,
+        {
+            assert(bytes()@[0] == 48u8) by (compute);
+        }
+
+        proof fn conditional(flag: bool, left: [u8; 1], right: [u8; 1])
+            requires left@[0] == 48u8, right@[0] == 48u8,
+        {
+            assert((if flag { left } else { right })@[0] == 48u8) by (compute);
+        }
+
+        proof fn borrowed(bytes: &[u8; 1])
+            requires bytes@[0] == 48u8,
+        {
+            assert(bytes@[0] == 48u8) by (compute);
+        }
+    } => Ok(())
+}
+
+test_verify_one_file! {
     #[test] array_local_view_compute_false verus_code! {
         use vstd::prelude::*;
 
