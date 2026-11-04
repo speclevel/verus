@@ -235,6 +235,8 @@ pub(crate) enum AttrPublish {
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Attr {
+    /// Enforce no-cheating on this function and all lexically nested code.
+    NoCheating,
     // specify mode (spec, proof, exec)
     Mode(Mode),
     // special case in modes.rs
@@ -457,6 +459,7 @@ pub(crate) fn parse_attrs(
 
         match prefix {
             AttrPrefix::Verifier => match &attr {
+                AttrTree::Fun(_, name, None) if name == "no_cheating" => v.push(Attr::NoCheating),
                 AttrTree::Fun(_, name, None) if name == "spec" => v.push(Attr::Mode(Mode::Spec)),
                 AttrTree::Fun(_, name, Some(box [AttrTree::Fun(_, arg, None)]))
                     if name == "spec" && arg == "checked" =>
@@ -991,6 +994,14 @@ pub(crate) fn parse_attrs_walk_parents<'tcx>(
     }
 }
 
+/// A protected function's nested items cannot turn off its no-cheating policy.
+pub(crate) fn get_no_cheating_walk_parents<'tcx>(
+    tcx: rustc_middle::ty::TyCtxt<'tcx>,
+    def_id: rustc_span::def_id::DefId,
+) -> bool {
+    parse_attrs_walk_parents(tcx, def_id).iter().any(|attr| matches!(attr, Attr::NoCheating))
+}
+
 fn is_allow_walk_parents<'tcx>(
     tcx: rustc_middle::ty::TyCtxt<'tcx>,
     def_id: rustc_span::def_id::DefId,
@@ -1238,6 +1249,8 @@ pub(crate) enum AutoDerivesAttr {
 // be external)
 #[derive(Debug, Clone)]
 pub(crate) struct ExternalAttrs {
+    /// Explicit no-cheating annotation; also opts the function into verification.
+    pub(crate) no_cheating: bool,
     pub(crate) external: bool,
     pub(crate) external_body: bool,
     pub(crate) external_fn_specification: bool,
@@ -1383,6 +1396,7 @@ pub(crate) fn get_external_attrs(
     diagnostics: Option<&mut Vec<VirErrAs>>,
 ) -> Result<ExternalAttrs, VirErr> {
     let mut es = ExternalAttrs {
+        no_cheating: false,
         external_body: false,
         external_fn_specification: false,
         external_type_specification: false,
@@ -1402,6 +1416,10 @@ pub(crate) fn get_external_attrs(
 
     for attr in parse_attrs(attrs, diagnostics)? {
         match attr {
+            Attr::NoCheating => {
+                es.no_cheating = true;
+                es.verify = true;
+            }
             Attr::ExternalBody => es.external_body = true,
             Attr::ExternalFnSpecification => es.external_fn_specification = true,
             Attr::ExternalTypeSpecification => es.external_type_specification = true,

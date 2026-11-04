@@ -1531,6 +1531,8 @@ pub struct AutoExtEqual {
 pub type FunctionAttrs = Arc<FunctionAttrsX>;
 #[derive(Debug, Serialize, Deserialize, ToDebugSNode, Default, Clone)]
 pub struct FunctionAttrsX {
+    /// Forbid new trust in this function, inherited from lexical function ancestors.
+    pub no_cheating: bool,
     /// Erasure and lifetime checking based on ghost blocks
     pub uses_ghost_blocks: bool,
     /// Inline spec function for SMT

@@ -217,6 +217,7 @@ fn handle_autospec<'tcx>(
                 outer_ret: spec_ret_param,
                 item_kind: ItemKind::Function,
                 attrs: Arc::new(FunctionAttrsX {
+                    no_cheating: functionx.attrs.no_cheating,
                     uses_ghost_blocks: vattrs.verus_macro,
                     inline: false,
                     broadcast_forall: false,
@@ -1445,6 +1446,7 @@ fn make_attributes<'tcx>(
         );
     }
     let fattrs = FunctionAttrsX {
+        no_cheating: crate::attributes::get_no_cheating_walk_parents(ctxt.tcx, def_id),
         uses_ghost_blocks,
         inline: vattrs.inline,
         no_auto_trigger: vattrs.no_auto_trigger,

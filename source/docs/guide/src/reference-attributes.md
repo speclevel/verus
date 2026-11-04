@@ -15,6 +15,7 @@
  - [`inline`](#verifierinline)
  - [`loop_isolation`](#verifierloop_isolation)
  - [`memoize`](#verifiermemoize)
+ - [`no_cheating`](#verifierno_cheating)
  - [`opaque`](#verifieropaque)
  - [`proof_note`](#verifierproof_notetext-and-verifierproof_notetext)
  - [`prophetic`](#verifierprophetic)
@@ -27,6 +28,24 @@
  - [`when_used_as_spec`](#verifierwhen_used_as_spec)
  - [`exec_allows_no_decreases_clause`](#verifierexec_allows_no_decreases_clause)
  - [`assume_termination`](#verifierassume_termination)
+
+## `#[verifier::no_cheating]`
+
+Applies the no-cheating checks to a function or method and its lexically nested
+code, including macro expansions. Nested items inherit the restriction and cannot
+disable it. The annotation opts the function into verification; combining it with
+`external`, placing it inside an excluded item, or introducing an excluded item
+or trusted declaration inside it is an error.
+
+Within the protected scope, `assume`, `admit`, `external_body`, external
+specifications, `assume_termination`, and calls through
+`externals_available_without_declaration` are rejected. The existing global
+`--no-cheating` option continues to apply independently.
+
+This is a lexical restriction, not a transitive trust guarantee: the function may
+call existing trusted APIs outside its scope. A tool accepting generated proofs
+must protect the annotation, ensure every generated item is covered, preserve
+the original program and contracts, and control the verifier invocation.
 
 ## `#![all_triggers]`
 

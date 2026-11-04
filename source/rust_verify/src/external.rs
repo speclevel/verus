@@ -219,6 +219,20 @@ impl<'a, 'tcx> rustc_hir::intravisit::Visitor<'tcx> for VisitMod<'a, 'tcx> {
         self.visit_general(GeneralItem::TraitItem(item), item.hir_id(), item.span);
     }
 
+    fn visit_expr(&mut self, expr: &'tcx rustc_hir::Expr<'tcx>) {
+        // An annotation on a block or closure must not silently look like protection.
+        self.reject_misplaced_no_cheating(expr.hir_id, expr.span);
+        rustc_hir::intravisit::walk_expr(self, expr);
+    }
+
+    fn visit_stmt(&mut self, stmt: &'tcx rustc_hir::Stmt<'tcx>) {
+        // Item statements are checked at their item owner, where the annotation is valid.
+        if !matches!(stmt.kind, rustc_hir::StmtKind::Item(_)) {
+            self.reject_misplaced_no_cheating(stmt.hir_id, stmt.span);
+        }
+        rustc_hir::intravisit::walk_stmt(self, stmt);
+    }
+
     fn maybe_tcx(&mut self) -> rustc_middle::ty::TyCtxt<'tcx> {
         self.ctxt.tcx
     }
@@ -236,6 +250,19 @@ fn opts_in_to_verus(eattrs: &ExternalAttrs) -> bool {
 }
 
 impl<'a, 'tcx> VisitMod<'a, 'tcx> {
+    fn reject_misplaced_no_cheating(&mut self, hir_id: HirId, span: Span) {
+        let attrs = self.ctxt.tcx.hir_attrs(hir_id);
+        if crate::attributes::parse_attrs_opt(attrs, None)
+            .iter()
+            .any(|attr| matches!(attr, crate::attributes::Attr::NoCheating))
+        {
+            self.errors.push(crate::util::err_span_bare(
+                span,
+                "#[verifier::no_cheating] is only supported on functions and methods",
+            ));
+        }
+    }
+
     fn visit_general(&mut self, general_item: GeneralItem<'tcx>, hir_id: HirId, span: Span) {
         let attrs = self.ctxt.tcx.hir_attrs(hir_id);
 
@@ -274,6 +301,37 @@ impl<'a, 'tcx> VisitMod<'a, 'tcx> {
         } else {
             my_eattrs.clone()
         };
+
+        // Enforce the lexical boundary before external items disappear from VIR.
+        // HIR already contains macro expansions, including their nested items.
+        if my_eattrs.no_cheating
+            && !matches!(
+                general_item,
+                GeneralItem::Item(Item { kind: ItemKind::Fn { .. }, .. })
+                    | GeneralItem::ImplItem(ImplItem { kind: ImplItemKind::Fn(..), .. })
+                    | GeneralItem::TraitItem(TraitItem { kind: TraitItemKind::Fn(..), .. })
+            )
+        {
+            self.errors.push(crate::util::err_span_bare(
+                span,
+                "#[verifier::no_cheating] is only supported on functions and methods",
+            ));
+            return;
+        }
+        if crate::attributes::get_no_cheating_walk_parents(self.ctxt.tcx, def_id)
+            && (self.state == VerifState::External
+                || eattrs.external
+                || eattrs.external_body
+                || eattrs.external_fn_specification
+                || eattrs.external_type_specification
+                || eattrs.external_trait_specification)
+        {
+            self.errors.push(crate::util::err_span_bare(
+                span,
+                "external code and trusted declarations are not allowed within #[verifier::no_cheating]",
+            ));
+            return;
+        }
 
         let state_for_this_item = match self.state {
             VerifState::Default => {
