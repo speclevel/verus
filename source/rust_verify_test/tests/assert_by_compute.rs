@@ -910,6 +910,36 @@ test_verify_one_file! {
 }
 
 test_verify_one_file! {
+    #[test] array_local_view_compute_fallback verus_code! {
+        use vstd::prelude::*;
+
+        fn test() {
+            let bytes = [48u8];
+            proof {
+                // Crashes in eval_array at vir/src/interpreter.rs:863 on upstream f049e6dc1:
+                // array_view expects Interp(Array(_)), but bytes is Interp(FreeVar(_)).
+                // The symbolic view should instead be left for SMT.
+                assert(bytes@[0] == 48u8) by (compute);
+            }
+        }
+    } => Ok(())
+}
+
+test_verify_one_file! {
+    #[test] array_local_view_smt verus_code! {
+        use vstd::prelude::*;
+
+        fn test() {
+            let bytes = [48u8];
+            proof {
+                // Without by (compute), this verifies without reaching the interpreter panic.
+                assert(bytes@[0] == 48u8);
+            }
+        }
+    } => Ok(())
+}
+
+test_verify_one_file! {
     #[test] array_closure_elements_github3072 verus_code! {
         spec fn mk1() -> [spec_fn(int) -> int; 1] {
             [|x: int| x + 1]
